@@ -12,7 +12,7 @@ app.use(express.urlencoded({ extended: true }));
 const transporter = nodemailer.createTransport({
     service: "gmail",
     auth: {
-        user: "abbadelightofficial@gmail.com",
+        user: "abbasdelightofficial@gmail.com",
         pass: process.env.GOOGLE_APP_PASSWORD,
     },
 });
@@ -71,33 +71,60 @@ const messages = [
     "Today and always, remember you are valued, appreciated, and deeply loved."
 ];
 
-app.post("/valentine", (req, res) => {
+app.post("/valentine", async (req, res) => {
     const { email, name } = req.body;
+
+    if (!email) return res.status(400).send("Email is required 💌");
 
     const newEntry = {
         email,
         name: name || "Friend",
         date: new Date().toISOString(),
     };
-    let emails = [];
-    if (fs.existsSync("emails.json")) {
-        emails = JSON.parse(fs.readFileSync("emails.json"));
-    }
-    if (!emails.some(e => e.email === newEntry.email)) {
+
+    try {
+        let emails = [];
+        if (fs.existsSync("emails.json")) {
+            emails = JSON.parse(fs.readFileSync("emails.json"));
+        }
+        if (emails.some(e => e.email === newEntry.email)) {
+            return res.send("You’ve already submitted your email! 💌");
+        }
         emails.push(newEntry);
+        const backupFile = `emails_backup_${Date.now()}.json`;
+        fs.writeFileSync(backupFile, JSON.stringify(emails, null, 2));
         fs.writeFileSync("emails.json", JSON.stringify(emails, null, 2));
+        await transporter.sendMail({
+            to: "abbasdelightofficial@gmail.com",
+            subject: "New Valentine Signup 💌",
+            text: `New signup: ${name || "Friend"} - ${email}`,
+        });
+
+        console.log(`✅ Notification sent for ${email}`);
         res.send("Your email has been saved 💌. You’ll get your Valentine message on Feb 14!");
-    } else {
-        res.send("You’ve already submitted your email! 💌");
+    } catch (err) {
+        console.error("❌ Error saving email:", err);
+        res.status(500).send("Oops! Something went wrong. Try again 💌");
     }
 });
 
 cron.schedule("0 0 14 2 *", async () => {
     console.log("🎉 Sending Valentine emails...");
 
-    if (!fs.existsSync("emails.json")) return;
+    if (!fs.existsSync("emails.json")) {
+        console.log("No emails found to send 💌");
+        return;
+    }
 
-    const emails = JSON.parse(fs.readFileSync("emails.json"));
+    let emails = [];
+    try {
+        emails = JSON.parse(fs.readFileSync("emails.json"));
+    } catch (err) {
+        console.error("❌ Error reading emails.json:", err);
+        return;
+    }
+    const logFile = `emails_sent_log_${Date.now()}.txt`;
+    let logData = "";
 
     for (const user of emails) {
         const randomMsg = messages[Math.floor(Math.random() * messages.length)];
@@ -105,21 +132,36 @@ cron.schedule("0 0 14 2 *", async () => {
         try {
             await transporter.sendMail({
                 to: user.email,
-                subject: "A Valentine Appreciation Message 💌",
-                text: `
-Hello ${user.name || "there"},
-
-${randomMsg}
-
-— Abba's Delight 💙
+                subject: "Your Special Valentine Note 💌",
+                html: `
+                <div style="font-family: Arial, sans-serif; text-align: center; padding: 20px;">
+                    <h2 style="color: #ff4d6d;">Hello ${user.name || "there"} 💖</h2>
+                    <p style="color: #555; font-size: 16px;">
+                        ${randomMsg}
+                    </p>
+                    <p style="margin-top: 30px; color: #ff4d6d;">
+                        — Abba's Delight 💙
+                    </p>
+                    <hr style="margin-top: 40px; border: 0; border-top: 1px solid #eee;">
+                    <p style="font-size: 12px; color: #999;">
+                        HeartNest Valentine 💌
+                    </p>
+                </div>
                 `,
             });
-            console.log(`Sent to: ${user.email}`);
+
+            console.log(`✅ Sent to: ${user.email}`);
+            logData += `✅ Sent to: ${user.email} - ${new Date().toISOString()}\n`;
         } catch (err) {
-            console.error("Error sending to", user.email, err);
+            console.error("❌ Error sending to", user.email, err);
+            logData += `❌ Failed: ${user.email} - ${new Date().toISOString()} - ${err.message}\n`;
         }
     }
+
+    fs.writeFileSync(logFile, logData, "utf-8");
+    console.log(`🎉 Sending completed! Log saved in ${logFile}`);
 });
+
 
 app.get("/emails", (req, res) => {
     if (fs.existsSync("emails.json")) {
