@@ -2,6 +2,10 @@ require('dotenv').config();
 const express = require('express');
 const nodemailer = require('nodemailer');
 const mongoose = require('mongoose');
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("MongoDB Connected ✅"))
+  .catch(err => console.error("❌ MongoDB connection error:", err));
+
 const cron = require('node-cron');
 const fs = require('fs');
 
