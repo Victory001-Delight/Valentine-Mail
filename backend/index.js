@@ -1,13 +1,18 @@
+require('dotenv').config();
 const express = require('express');
 const nodemailer = require('nodemailer');
-const cron = require('node-cron')
-require('dotenv').config();
+const mongoose = require('mongoose');
+const cron = require('node-cron');
 const fs = require('fs');
+
+const Subscriber = require('./models/Subscriber');
+
 const app = express();
-port = 3500;
+const port = 3500;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
 
 const transporter = nodemailer.createTransport({
     service: "gmail",
@@ -76,24 +81,11 @@ app.post("/valentine", async (req, res) => {
 
     if (!email) return res.status(400).send("Email is required 💌");
 
-    const newEntry = {
-        email,
-        name: name || "Friend",
-        date: new Date().toISOString(),
-    };
-
     try {
-        let emails = [];
-        if (fs.existsSync("emails.json")) {
-            emails = JSON.parse(fs.readFileSync("emails.json"));
-        }
-        if (emails.some(e => e.email === newEntry.email)) {
-            return res.send("You’ve already submitted your email! 💌");
-        }
-        emails.push(newEntry);
-        const backupFile = `emails_backup_${Date.now()}.json`;
-        fs.writeFileSync(backupFile, JSON.stringify(emails, null, 2));
-        fs.writeFileSync("emails.json", JSON.stringify(emails, null, 2));
+        const existing = await Subscriber.findOne({ email });
+        if (existing) return res.send("You’ve already submitted your email! 💌");
+        const newSubscriber = new Subscriber({ email, name });
+        await newSubscriber.save();
         await transporter.sendMail({
             to: "abbasdelightofficial@gmail.com",
             subject: "New Valentine Signup 💌",
@@ -111,66 +103,67 @@ app.post("/valentine", async (req, res) => {
 cron.schedule("0 0 14 2 *", async () => {
     console.log("🎉 Sending Valentine emails...");
 
-    if (!fs.existsSync("emails.json")) {
-        console.log("No emails found to send 💌");
-        return;
-    }
-
-    let emails = [];
     try {
-        emails = JSON.parse(fs.readFileSync("emails.json"));
-    } catch (err) {
-        console.error("❌ Error reading emails.json:", err);
-        return;
-    }
-    const logFile = `emails_sent_log_${Date.now()}.txt`;
-    let logData = "";
+        const subscribers = await Subscriber.find();
 
-    for (const user of emails) {
-        const randomMsg = messages[Math.floor(Math.random() * messages.length)];
-
-        try {
-            await transporter.sendMail({
-                to: user.email,
-                subject: "Your Special Valentine Note 💌",
-                html: `
-                <div style="font-family: Arial, sans-serif; text-align: center; padding: 20px;">
-                    <h2 style="color: #ff4d6d;">Hello ${user.name || "there"} 💖</h2>
-                    <p style="color: #555; font-size: 16px;">
-                        ${randomMsg}
-                    </p>
-                    <p style="margin-top: 30px; color: #ff4d6d;">
-                        — Abba's Delight 💙
-                    </p>
-                    <hr style="margin-top: 40px; border: 0; border-top: 1px solid #eee;">
-                    <p style="font-size: 12px; color: #999;">
-                        HeartNest Valentine 💌
-                    </p>
-                </div>
-                `,
-            });
-
-            console.log(`✅ Sent to: ${user.email}`);
-            logData += `✅ Sent to: ${user.email} - ${new Date().toISOString()}\n`;
-        } catch (err) {
-            console.error("❌ Error sending to", user.email, err);
-            logData += `❌ Failed: ${user.email} - ${new Date().toISOString()} - ${err.message}\n`;
+        if (subscribers.length === 0) {
+            console.log("No subscribers found 💌");
+            return;
         }
-    }
 
-    fs.writeFileSync(logFile, logData, "utf-8");
-    console.log(`🎉 Sending completed! Log saved in ${logFile}`);
+        const logFile = `emails_sent_log_${Date.now()}.txt`;
+        let logData = "";
+
+        for (const user of subscribers) {
+            const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+
+            try {
+                await transporter.sendMail({
+                    to: user.email,
+                    subject: "Your Special Valentine Note 💌",
+                    html: `
+                        <div style="font-family: Arial, sans-serif; text-align: center; padding: 20px;">
+                            <h2 style="color: #ff4d6d;">Hello ${user.name || "there"} 💖</h2>
+                            <p style="color: #555; font-size: 16px;">
+                                ${randomMsg}
+                            </p>
+                            <p style="margin-top: 30px; color: #ff4d6d;">
+                                — Abba's Delight 💙
+                            </p>
+                            <hr style="margin-top: 40px; border: 0; border-top: 1px solid #eee;">
+                            <p style="font-size: 12px; color: #999;">
+                                HeartNest Valentine 💌
+                            </p>
+                        </div>
+                    `,
+                });
+
+                console.log(`✅ Sent to: ${user.email}`);
+                logData += `✅ Sent to: ${user.email} - ${new Date().toISOString()}\n`;
+            } catch (err) {
+                console.error("❌ Error sending to", user.email, err);
+                logData += `❌ Failed: ${user.email} - ${new Date().toISOString()} - ${err.message}\n`;
+            }
+        }
+
+        fs.writeFileSync(logFile, logData, "utf-8");
+        console.log(`🎉 Sending completed! Log saved in ${logFile}`);
+    } catch (err) {
+        console.error("❌ Error fetching subscribers:", err);
+    }
 });
 
 
-app.get("/emails", (req, res) => {
-    if (fs.existsSync("emails.json")) {
-        const emails = JSON.parse(fs.readFileSync("emails.json"));
+app.get("/emails", async (req, res) => {
+    try {
+        const emails = await Subscriber.find().sort({ date: -1 });
         res.json(emails);
-    } else {
-        res.json([]);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Cannot fetch emails 💌");
     }
 });
+
 app.listen(port, () => {
     console.log(`server is running on ${port}`);
 
