@@ -1,14 +1,9 @@
 require('dotenv').config();
 const express = require('express');
-const nodemailer = require('nodemailer');
 const mongoose = require('mongoose');
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB Connected ✅"))
-  .catch(err => console.error("❌ MongoDB connection error:", err));
-
-const cron = require('node-cron');
+const nodemailer = require('nodemailer');
 const fs = require('fs');
-
+const cron = require('node-cron');
 const Subscriber = require('./models/Subscriber');
 
 const app = express();
@@ -16,6 +11,7 @@ const port = 3500;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
 
 
 const transporter = nodemailer.createTransport({
@@ -80,6 +76,24 @@ const messages = [
     "Today and always, remember you are valued, appreciated, and deeply loved."
 ];
 
+mongoose.connect(process.env.MONGO_URI)
+    .then(() => {
+        console.log("MongoDB Connected ✅");
+
+        // Start server **after MongoDB is connected**
+        app.listen(port, () => {
+            console.log(`Server running on ${port}`);
+        });
+    })
+    .catch(err => console.error("❌ MongoDB connection error:", err));
+
+// Optional: reconnect handling
+mongoose.connection.on("disconnected", () => {
+    console.log("⚠️ MongoDB disconnected, retrying...");
+});
+mongoose.connection.on("error", err => {
+    console.error("❌ MongoDB connection error:", err);
+});
 app.post("/valentine", async (req, res) => {
     const { email, name } = req.body;
 
@@ -168,7 +182,7 @@ app.get("/emails", async (req, res) => {
     }
 });
 
-app.listen(port, () => {
-    console.log(`server is running on ${port}`);
+// app.listen(port, () => {
+//     console.log(`server is running on ${port}`);
 
-})
+// })
