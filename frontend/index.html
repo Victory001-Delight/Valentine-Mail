@@ -81,21 +81,52 @@
         It's about appreciation, love, and reminding people they matter.
     </p>
 
-    <form action="https://valentine-mail.onrender.com/valentine" method="POST">
+    <form id="valentineForm">
         <input type="text" name="name" placeholder="Your name (optional)">
-
         <input type="email" name="email" placeholder="Enter your email" required>
-
-        <button type="submit">
-            Receive Love Message 💌
-        </button>
-
+        <button type="submit">Receive Love Message 💌</button>
     </form>
 
     <div class="footer">
         Built by Abba's Delight ❤️
     </div>
 </div>
+
+<script>
+const form = document.getElementById("valentineForm");
+
+form.addEventListener("submit", async (e) => {
+    e.preventDefault(); // prevent default reload
+
+    const formData = {
+        name: form.name.value,
+        email: form.email.value
+    };
+
+    try {
+        const res = await fetch("https://valentine-mail.onrender.com/valentine", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(formData)
+        });
+
+        const text = await res.text();
+
+        // Show the confirmation message inside the container
+        form.innerHTML = `
+            <h2>💌 Thank you, your love message is on its way. You can check your email in the next few minutes ❤️❤️</h2>
+            <p>${text}</p>
+        `;
+
+    } catch (err) {
+        console.error(err);
+        form.innerHTML = `
+            <h2>❌ Oops!</h2>
+            <p>Something went wrong. Please try again 💌</p>
+        `;
+    }
+});
+</script>
 
 </body>
 </html>
