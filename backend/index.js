@@ -3,7 +3,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const nodemailer = require('nodemailer');
 const fs = require('fs');
-const cron = require('node-cron');
+// const cron = require('node-cron');
 const Subscriber = require('./models/Subscriber');
 
 const app = express();
@@ -118,69 +118,139 @@ app.post("/valentine", async (req, res) => {
     }
 });
 
-cron.schedule("0 0 14 2 *", async () => {
-    console.log("🎉 Sending Valentine emails...");
+// cron.schedule("0 0 14 2 *", async () => {
+//     console.log("🎉 Sending Valentine emails...");
 
+//     try {
+//         const subscribers = await Subscriber.find();
+
+//         if (subscribers.length === 0) {
+//             console.log("No subscribers found 💌");
+//             return;
+//         }
+
+//         const logFile = `emails_sent_log_${Date.now()}.txt`;
+//         let logData = "";
+
+//         for (const user of subscribers) {
+//             const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+
+//             try {
+//                 await transporter.sendMail({
+//                     to: user.email,
+//                     subject: "Your Special Valentine Note 💌",
+//                     html: `
+//                         <div style="font-family: Arial, sans-serif; text-align: center; padding: 20px;">
+//                             <h2 style="color: #ff4d6d;">Hello ${user.name || "there"} 💖</h2>
+//                             <p style="color: #555; font-size: 16px;">
+//                                 ${randomMsg}
+//                             </p>
+//                             <p style="margin-top: 30px; color: #ff4d6d;">
+//                                 — Abba's Delight 💙
+//                             </p>
+//                             <hr style="margin-top: 40px; border: 0; border-top: 1px solid #eee;">
+//                             <p style="font-size: 12px; color: #999;">
+//                                 HeartNest Valentine 💌
+//                             </p>
+//                         </div>
+//                     `,
+//                 });
+
+//                 console.log(`✅ Sent to: ${user.email}`);
+//                 logData += `✅ Sent to: ${user.email} - ${new Date().toISOString()}\n`;
+//             } catch (err) {
+//                 console.error("❌ Error sending to", user.email, err);
+//                 logData += `❌ Failed: ${user.email} - ${new Date().toISOString()} - ${err.message}\n`;
+//             }
+//         }
+
+//         fs.writeFileSync(logFile, logData, "utf-8");
+//         console.log(`🎉 Sending completed! Log saved in ${logFile}`);
+//     } catch (err) {
+//         console.error("❌ Error fetching subscribers:", err);
+//     }
+// });
+
+app.get("/send", async (req, res) => {
     try {
-        const subscribers = await Subscriber.find();
+        // Load all subscribers
+        const users = JSON.parse(fs.readFileSync('emails.json', 'utf-8'));
+        console.log(`Total users in emails.json: ${users.length}`);
 
-        if (subscribers.length === 0) {
-            console.log("No subscribers found 💌");
-            return;
+        // Load already sent emails
+        const sentFile = 'emails_sent_log.json';
+        let sentEmails = fs.existsSync(sentFile) ? JSON.parse(fs.readFileSync(sentFile, 'utf-8')) : [];
+
+        // Load failed emails log
+        const failedFile = 'emails_failed_log.json';
+        let failedEmails = fs.existsSync(failedFile) ? JSON.parse(fs.readFileSync(failedFile, 'utf-8')) : [];
+
+        // Filter only unsent emails
+        const unsentUsers = users.filter(u => !sentEmails.includes(u.email));
+        console.log(`Emails to send: ${unsentUsers.length}`);
+
+        let success = 0;
+        let failed = 0;
+
+        // Send in batches (5 emails at a time)
+        const batchSize = 5;
+        for (let i = 0; i < unsentUsers.length; i += batchSize) {
+            const batch = unsentUsers.slice(i, i + batchSize);
+
+            await Promise.all(batch.map(async (user) => {
+                const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+
+                try {
+                    await transporter.sendMail({
+                        from: `"Abba's Delight 💙" <abbasdelightofficial@gmail.com>`,
+                        to: user.email,
+                        subject: "Your Special Valentine Note 💌",
+                        html: `<h2>Hello ${user.name || "there"} 💖</h2><p>${randomMsg}</p>
+                        <p style="margin-top: 30px; color: #ff4d6d;">
+//                                 — Abba's Delight 💙
+//                             </p>
+//                             <hr style="margin-top: 40px; border: 0; border-top: 1px solid #eee;">
+//                             <p style="font-size: 12px; color: #999;">
+//                                 HeartNest Valentine 💌
+//                             </p>`
+                    });
+
+                    console.log(`✅ Sent to ${user.email}`);
+                    sentEmails.push(user.email);
+                    success++;
+
+                } catch (err) {
+                    console.log(`❌ Failed to send to ${user.email}`);
+                    failedEmails.push({ email: user.email, error: err.message, time: new Date().toISOString() });
+                    failed++;
+                }
+            }));
+
+            // Small delay between batches to avoid Gmail throttling
+            await new Promise(resolve => setTimeout(resolve, 3000));
         }
 
-        const logFile = `emails_sent_log_${Date.now()}.txt`;
-        let logData = "";
+        // Save updated logs
+        fs.writeFileSync(sentFile, JSON.stringify(sentEmails, null, 2), 'utf-8');
+        fs.writeFileSync(failedFile, JSON.stringify(failedEmails, null, 2), 'utf-8');
 
-        for (const user of subscribers) {
-            const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+        res.send(`Done 💌 Success: ${success}, Failed: ${failed}`);
 
-            try {
-                await transporter.sendMail({
-                    to: user.email,
-                    subject: "Your Special Valentine Note 💌",
-                    html: `
-                        <div style="font-family: Arial, sans-serif; text-align: center; padding: 20px;">
-                            <h2 style="color: #ff4d6d;">Hello ${user.name || "there"} 💖</h2>
-                            <p style="color: #555; font-size: 16px;">
-                                ${randomMsg}
-                            </p>
-                            <p style="margin-top: 30px; color: #ff4d6d;">
-                                — Abba's Delight 💙
-                            </p>
-                            <hr style="margin-top: 40px; border: 0; border-top: 1px solid #eee;">
-                            <p style="font-size: 12px; color: #999;">
-                                HeartNest Valentine 💌
-                            </p>
-                        </div>
-                    `,
-                });
-
-                console.log(`✅ Sent to: ${user.email}`);
-                logData += `✅ Sent to: ${user.email} - ${new Date().toISOString()}\n`;
-            } catch (err) {
-                console.error("❌ Error sending to", user.email, err);
-                logData += `❌ Failed: ${user.email} - ${new Date().toISOString()} - ${err.message}\n`;
-            }
-        }
-
-        fs.writeFileSync(logFile, logData, "utf-8");
-        console.log(`🎉 Sending completed! Log saved in ${logFile}`);
-    } catch (err) {
-        console.error("❌ Error fetching subscribers:", err);
+    } catch (error) {
+        console.error("❌ Error in /send route:", error);
+        res.status(500).send("Error sending emails 💌");
     }
 });
 
-
-app.get("/emails", async (req, res) => {
-    try {
-        const emails = await Subscriber.find().sort({ date: -1 });
-        res.json(emails);
-    } catch (err) {
-        console.error(err);
-        res.status(500).send("Cannot fetch emails 💌");
-    }
-});
+// app.get("/emails", async (req, res) => {
+//     try {
+//         const emails = await Subscriber.find().sort({ date: -1 });
+//         res.json(emails);
+//     } catch (err) {
+//         console.error(err);
+//         res.status(500).send("Cannot fetch emails 💌");
+//     }
+// });
 
 // app.listen(port, () => {
 //     console.log(`server is running on ${port}`);
