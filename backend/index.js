@@ -242,15 +242,15 @@ app.get("/send", async (req, res) => {
     }
 });
 
-// app.get("/emails", async (req, res) => {
-//     try {
-//         const emails = await Subscriber.find().sort({ date: -1 });
-//         res.json(emails);
-//     } catch (err) {
-//         console.error(err);
-//         res.status(500).send("Cannot fetch emails 💌");
-//     }
-// });
+app.get("/emails", async (req, res) => {
+    try {
+        const emails = await Subscriber.find().sort({ date: -1 });
+        res.json(emails);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Cannot fetch emails 💌");
+    }
+});
 
 // app.listen(port, () => {
 //     console.log(`server is running on ${port}`);
