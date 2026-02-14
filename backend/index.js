@@ -63,7 +63,6 @@ const messages = [
     "Your laughter, your words, and your heart bring joy to people in ways you may not see.",
     "Take a moment today to recognize your own worth and the love you are capable of sharing.",
     "Your presence is a gift, and the world is brighter because of you.",
-    "Even small gestures of love and care from you leave a lasting impact on others.",
     "You are unique, your story is important, and your heart is full of beautiful things.",
     "The love you carry within you has the power to heal, inspire, and uplift.",
     "Your spirit, your kindness, and your strength are admired more than you know.",
@@ -97,13 +96,19 @@ mongoose.connection.on("error", err => {
 app.post("/valentine", async (req, res) => {
     const { email, name } = req.body;
 
-    if (!email) return res.status(400).send("Email is required 💌");
+    if (!email) {
+        return res.status(400).json({ success: false, message: "Email is required 💌" });
+    }
 
     try {
         const existing = await Subscriber.findOne({ email });
-        if (existing) return res.send("You’ve already submitted your email! 💌");
+        if (existing) {
+            return res.status(200).json({ success: false, message: "You’ve already submitted your email! 💌" });
+        }
+
         const newSubscriber = new Subscriber({ email, name });
         await newSubscriber.save();
+
         await transporter.sendMail({
             to: "abbasdelightofficial@gmail.com",
             subject: "New Valentine Signup 💌",
@@ -111,17 +116,16 @@ app.post("/valentine", async (req, res) => {
         });
 
         console.log(`✅ Notification sent for ${email}`);
-        res.send("Your email has been saved 💌. You’ll get your Valentine message on Feb 14!");
+
+        return res.status(200).json({ success: true, message: "Your email has been saved 💌. You’ll get your Valentine message on Feb 14!" });
+
     } catch (err) {
         console.error("❌ Error saving email:", err);
-        res.status(500).send("Oops! Something went wrong. Try again 💌");
+        return res.status(500).json({ success: false, message: "Oops! Something went wrong. Try again 💌" });
     }
 });
 
-/**
- * GET /send
- * Send Valentine emails to all users in emails.json without duplicates
- */
+
 app.get("/send", async (req, res) => {
     try {
         // Load all users from emails.json

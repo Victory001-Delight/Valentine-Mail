@@ -88,6 +88,7 @@
     <div class="footer">Built by Abba's Delight ❤️</div>
 </div>
 
+</body>
 <script>
 const form = document.getElementById("valentineForm");
 const messageDiv = document.getElementById("message");
@@ -95,7 +96,7 @@ const messageDiv = document.getElementById("message");
 form.addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    messageDiv.innerHTML = "Sending... 💌"; // show immediate feedback
+    messageDiv.innerHTML = "Sending... 💌"; // immediate feedback
 
     const formData = {
         name: form.name.value,
@@ -109,11 +110,13 @@ form.addEventListener("submit", async (e) => {
             body: JSON.stringify(formData)
         });
 
-        const text = await res.text();
+        const data = await res.json(); // parse JSON
 
-        messageDiv.innerHTML = `<p>${text}</p>`; // show backend response
+        // show backend message
+        messageDiv.innerHTML = `<p>${data.message}</p>`;
 
-        if (res.ok) form.reset(); // clear form on success
+        // clear form only if success
+        if (data.success) form.reset();
 
     } catch (err) {
         console.error(err);
@@ -122,6 +125,5 @@ form.addEventListener("submit", async (e) => {
 });
 </script>
 
-</body>
 </html>
 
