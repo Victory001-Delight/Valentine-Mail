@@ -207,65 +207,61 @@ app.post("/valentine", async (req, res) => {
 });
 
 app.get("/send", async (req, res) => {
-    try {
-        // Get all subscribers from MongoDB who haven't received messages yet
-        const unsentSubscribers = await Subscriber.find({ messageSent: false });
+  try {
+    // Load all users from emails.json
+    const users = JSON.parse(fs.readFileSync('emails.json', 'utf-8'));
 
-        if (unsentSubscribers.length === 0) {
-            return res.json({
-                success: true,
-                message: "No new subscribers to send messages to! 💌"
-            });
-        }
+    // Load sent emails log
+    const sentFile = 'emails_sent_log.json';
+    let sentEmails = fs.existsSync(sentFile) ? JSON.parse(fs.readFileSync(sentFile, 'utf-8')) : [];
 
-        let success = 0, failed = 0;
-        const failedFile = 'emails_failed_log.json';
-        let failedEmails = fs.existsSync(failedFile) ? JSON.parse(fs.readFileSync(failedFile, 'utf-8')) : [];
+    // Load failed emails log
+    const failedFile = 'emails_failed_log.json';
+    let failedEmails = fs.existsSync(failedFile) ? JSON.parse(fs.readFileSync(failedFile, 'utf-8')) : [];
 
-        for (const subscriber of unsentSubscribers) {
-            const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+    // Filter only unsent emails
+    const unsentUsers = users.filter(u => !sentEmails.includes(u.email));
 
-            try {
-                await transporter.sendMail({
-                    from: `"Abba's Delight 💙" <abbasdelightofficial@gmail.com>`,
-                    to: user.email,
-                    replyTo: "abbasdelightofficial@gmail.com",
-                    subject: "Your Special Valentine Note 💌",
-                    html: `<h2>Hello ${user.name || "there"} 💖</h2><p>${randomMsg}</p>`
-                });
+    let success = 0, failed = 0;
 
+    for (const user of unsentUsers) {
+      const randomMsg = messages[Math.floor(Math.random() * messages.length)];
 
-                // Mark as sent in database
-                subscriber.messageSent = true;
-                subscriber.sentAt = new Date();
-                await subscriber.save();
-
-                console.log(`✅ Sent to ${subscriber.email}`);
-                success++;
-
-                // Optional: tiny delay to avoid Gmail throttling
-                await new Promise(resolve => setTimeout(resolve, 5000));
-
-            } catch (err) {
-                console.error(`❌ Failed to send to ${subscriber.email}`);
-                failedEmails.push({ email: subscriber.email, error: err.message, time: new Date().toISOString() });
-                failed++;
-            }
-        }
-
-        // Save failed log
-        fs.writeFileSync(failedFile, JSON.stringify(failedEmails, null, 2), 'utf-8');
-
-        res.json({ success: true, message: `Done 💌 Sent: ${success}, Failed: ${failed}, Total new: ${unsentSubscribers.length}` });
-
-    } catch (err) {
-        console.error("❌ Error in /send:", err);
-        return res.status(500).json({
-            success: false,
-            message: "Oops! Something went wrong. Try again 💌"
+      try {
+        await transporter.sendMail({
+          // Removed emojis for Gmail compatibility
+          from: `"Abbas Delight" <abbasdelightofficial@gmail.com>`,
+          to: user.email,
+          subject: "Your Special Valentine Note 💌",
+          html: `<h2>Hello ${user.name || "there"} 💖</h2><p>${randomMsg}</p>`
         });
+
+        console.log(`✅ Sent to ${user.email}`);
+        sentEmails.push(user.email);
+        success++;
+
+        // Small delay to prevent Gmail from blocking
+        await new Promise(r => setTimeout(r, 3000)); // 3 seconds
+
+      } catch (err) {
+        console.error(`❌ Failed to send to ${user.email}:`, err.message);
+        failedEmails.push({ email: user.email, error: err.message, time: new Date().toISOString() });
+        failed++;
+      }
     }
+
+    // Save logs
+    fs.writeFileSync(sentFile, JSON.stringify(sentEmails, null, 2), 'utf-8');
+    fs.writeFileSync(failedFile, JSON.stringify(failedEmails, null, 2), 'utf-8');
+
+    res.json({ success: true, message: `Done 💌 Success: ${success}, Failed: ${failed}` });
+
+  } catch (err) {
+    console.error("❌ Error in /send route:", err);
+    res.status(500).send("Error sending emails 💌");
+  }
 });
+
 
 
 app.get("/emails", async (req, res) => {
