@@ -92,11 +92,13 @@
     </div>
 </div>
 
+
 <script>
 const form = document.getElementById("valentineForm");
+const messageDiv = document.getElementById("message");
 
 form.addEventListener("submit", async (e) => {
-    e.preventDefault(); // prevent default reload
+    e.preventDefault();
 
     const formData = {
         name: form.name.value,
@@ -112,18 +114,11 @@ form.addEventListener("submit", async (e) => {
 
         const text = await res.text();
 
-        // Show the confirmation message inside the container
-        form.innerHTML = `
-            <h2>💌 Thank you, your love message is on its way. You can check your email in the next few minutes ❤️❤️</h2>
-            <p>${text}</p>
-        `;
+        messageDiv.innerHTML = `<p>${text}</p>`;
 
     } catch (err) {
         console.error(err);
-        form.innerHTML = `
-            <h2>❌ Oops!</h2>
-            <p>Something went wrong. Please try again 💌</p>
-        `;
+        messageDiv.innerHTML = `<p>❌ Something went wrong. Please try again 💌</p>`;
     }
 });
 </script>
