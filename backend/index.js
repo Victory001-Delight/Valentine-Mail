@@ -115,16 +115,51 @@ app.post("/valentine", async (req, res) => {
         let subscriber = await Subscriber.findOne({ email });
 
         if (subscriber) {
-            return res.json({ 
-                success: true, 
-                message: "You're already on our list! 💖 Check your inbox soon! 💌" 
-            });
+            // If already sent, inform them
+            if (subscriber.messageSent) {
+                return res.json({ 
+                    success: true, 
+                    message: "You've already received your Valentine message! 💖 Check your inbox! 💌" 
+                });
+            } else {
+                // Subscriber exists but message not sent yet, send now
+                const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+                
+                try {
+                    await transporter.sendMail({
+                        from: `"Abba's Delight 💙" <abbasdelightofficial@gmail.com>`,
+                        to: email,
+                        subject: "Your Special Valentine Note 💌",
+                        html: `<h2>Hello ${subscriber.name} 💖</h2><p>${randomMsg}</p><br><p>Thank you for being part of HeartNest!</p>`
+                    });
+
+                    // Mark as sent
+                    subscriber.messageSent = true;
+                    subscriber.sentAt = new Date();
+                    await subscriber.save();
+
+                    console.log(`✅ Valentine email sent to existing subscriber ${email}`);
+
+                    return res.json({ 
+                        success: true, 
+                        message: "Success! 💌 Your Valentine message has been sent! Check your inbox! ❤️" 
+                    });
+
+                } catch (emailErr) {
+                    console.error(`❌ Failed to send email to ${email}:`, emailErr.message);
+                    return res.json({ 
+                        success: true, 
+                        message: "You're on our list! 💖 We'll send your message soon! 💌" 
+                    });
+                }
+            }
         }
 
         // Create new subscriber
         subscriber = new Subscriber({
             email,
             name: name || "Friend",
+            messageSent: false,
         });
 
         await subscriber.save();
@@ -140,11 +175,16 @@ app.post("/valentine", async (req, res) => {
                 html: `<h2>Hello ${name || "there"} 💖</h2><p>${randomMsg}</p><br><p>Thank you for joining HeartNest!</p>`
             });
 
+            // Mark as sent
+            subscriber.messageSent = true;
+            subscriber.sentAt = new Date();
+            await subscriber.save();
+
             console.log(`✅ Welcome email sent to ${email}`);
 
             return res.json({ 
                 success: true, 
-                message: "Success! 💌 Check your inbox for love! ❤️" 
+                message: "Success! 💌 Your Valentine message has been sent! Check your inbox! ❤️" 
             });
 
         } catch (emailErr) {
@@ -168,52 +208,53 @@ app.post("/valentine", async (req, res) => {
 
 app.get("/send", async (req, res) => {
     try {
-        // Load all users from emails.json
-        const users = JSON.parse(fs.readFileSync('emails.json', 'utf-8'));
+        // Get all subscribers from MongoDB who haven't received messages yet
+        const unsentSubscribers = await Subscriber.find({ messageSent: false });
 
-        // Load sent emails log
-        const sentFile = 'emails_sent_log.json';
-        let sentEmails = fs.existsSync(sentFile) ? JSON.parse(fs.readFileSync(sentFile, 'utf-8')) : [];
+        if (unsentSubscribers.length === 0) {
+            return res.json({ 
+                success: true, 
+                message: "No new subscribers to send messages to! 💌" 
+            });
+        }
 
-        // Load failed emails log
+        let success = 0, failed = 0;
         const failedFile = 'emails_failed_log.json';
         let failedEmails = fs.existsSync(failedFile) ? JSON.parse(fs.readFileSync(failedFile, 'utf-8')) : [];
 
-        // Filter only unsent emails
-        const unsentUsers = users.filter(u => !sentEmails.includes(u.email));
-
-        let success = 0, failed = 0;
-
-        for (const user of unsentUsers) {
+        for (const subscriber of unsentSubscribers) {
             const randomMsg = messages[Math.floor(Math.random() * messages.length)];
 
             try {
                 await transporter.sendMail({
                     from: `"Abba's Delight 💙" <abbasdelightofficial@gmail.com>`,
-                    to: user.email,
+                    to: subscriber.email,
                     subject: "Your Special Valentine Note 💌",
-                    html: `<h2>Hello ${user.name || "there"} 💖</h2><p>${randomMsg}</p>`
+                    html: `<h2>Hello ${subscriber.name} 💖</h2><p>${randomMsg}</p>`
                 });
 
-                console.log(`✅ Sent to ${user.email}`);
-                sentEmails.push(user.email);
+                // Mark as sent in database
+                subscriber.messageSent = true;
+                subscriber.sentAt = new Date();
+                await subscriber.save();
+
+                console.log(`✅ Sent to ${subscriber.email}`);
                 success++;
 
                 // Optional: tiny delay to avoid Gmail throttling
                 await new Promise(r => setTimeout(r, 1000));
 
             } catch (err) {
-                console.error(`❌ Failed to send to ${user.email}`);
-                failedEmails.push({ email: user.email, error: err.message, time: new Date().toISOString() });
+                console.error(`❌ Failed to send to ${subscriber.email}`);
+                failedEmails.push({ email: subscriber.email, error: err.message, time: new Date().toISOString() });
                 failed++;
             }
         }
 
-        // Save logs
-        fs.writeFileSync(sentFile, JSON.stringify(sentEmails, null, 2), 'utf-8');
+        // Save failed log
         fs.writeFileSync(failedFile, JSON.stringify(failedEmails, null, 2), 'utf-8');
 
-        res.json({ success: true, message: `Done 💌 Success: ${success}, Failed: ${failed}` });
+        res.json({ success: true, message: `Done 💌 Sent: ${success}, Failed: ${failed}, Total new: ${unsentSubscribers.length}` });
 
     } catch (err) {
         console.error("❌ Error in /send:", err);

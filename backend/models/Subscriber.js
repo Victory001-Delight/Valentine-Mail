@@ -14,6 +14,14 @@ const subscriberSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },
+    messageSent: {
+        type: Boolean,
+        default: false,
+    },
+    sentAt: {
+        type: Date,
+        default: null,
+    },
 });
 
 module.exports = mongoose.model('Subscriber', subscriberSchema);
