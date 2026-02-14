@@ -173,7 +173,8 @@ app.get("/send", async (req, res) => {
         fs.writeFileSync(sentFile, JSON.stringify(sentEmails, null, 2), 'utf-8');
         fs.writeFileSync(failedFile, JSON.stringify(failedEmails, null, 2), 'utf-8');
 
-        res.send(`Done 💌 Success: ${success}, Failed: ${failed}`);
+        res.json({ success: true, message: `Done 💌 Success: ${success}, Failed: ${failed}` });
+
 
     } catch (err) {
         console.error("❌ Error in /send route:", err);
