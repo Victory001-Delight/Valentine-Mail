@@ -1,17 +1,21 @@
 require('dotenv').config();
+
+// Core dependencies
 const express = require('express');
 const mongoose = require('mongoose');
 const nodemailer = require('nodemailer');
 const fs = require('fs');
-// const cron = require('node-cron');
-const Subscriber = require('./models/Subscriber');
+const cors = require('cors'); // Only if you need cross-origin requests
+const Subscriber = require('./models/Subscriber'); // your Mongoose model
+
 
 const app = express();
-const port = 3500;
+const port = process.env.PORT || 3500; 
 
+// Middleware
+app.use(cors()); // Only needed if frontend is on a different domain
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
 
 
 const transporter = nodemailer.createTransport({
@@ -93,38 +97,74 @@ mongoose.connection.on("disconnected", () => {
 mongoose.connection.on("error", err => {
     console.error("❌ MongoDB connection error:", err);
 });
+
+// POST /valentine - Save subscriber and send notification email
 app.post("/valentine", async (req, res) => {
-    const { email, name } = req.body;
-
-    if (!email) {
-        return res.status(400).json({ success: false, message: "Email is required 💌" });
-    }
-
     try {
-        const existing = await Subscriber.findOne({ email });
-        if (existing) {
-            return res.status(200).json({ success: false, message: "You’ve already submitted your email! 💌" });
+        const { name, email } = req.body;
+
+        // Validate email
+        if (!email) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Email is required! 💌" 
+            });
         }
 
-        const newSubscriber = new Subscriber({ email, name });
-        await newSubscriber.save();
+        // Check if subscriber already exists
+        let subscriber = await Subscriber.findOne({ email });
 
-        await transporter.sendMail({
-            to: "abbasdelightofficial@gmail.com",
-            subject: "New Valentine Signup 💌",
-            text: `New signup: ${name || "Friend"} - ${email}`,
+        if (subscriber) {
+            return res.json({ 
+                success: true, 
+                message: "You're already on our list! 💖 Check your inbox soon! 💌" 
+            });
+        }
+
+        // Create new subscriber
+        subscriber = new Subscriber({
+            email,
+            name: name || "Friend",
         });
 
-        console.log(`✅ Notification sent for ${email}`);
+        await subscriber.save();
 
-        return res.status(200).json({ success: true, message: "Your email has been saved 💌. You’ll get your Valentine message on Feb 14!" });
+        // Send a notification/welcome email immediately
+        const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+
+        try {
+            await transporter.sendMail({
+                from: `"Abba's Delight 💙" <abbasdelightofficial@gmail.com>`,
+                to: email,
+                subject: "Your Special Valentine Note 💌",
+                html: `<h2>Hello ${name || "there"} 💖</h2><p>${randomMsg}</p><br><p>Thank you for joining HeartNest!</p>`
+            });
+
+            console.log(`✅ Welcome email sent to ${email}`);
+
+            return res.json({ 
+                success: true, 
+                message: "Success! 💌 Check your inbox for love! ❤️" 
+            });
+
+        } catch (emailErr) {
+            console.error(`❌ Failed to send email to ${email}:`, emailErr.message);
+            
+            // Still return success since subscriber was saved
+            return res.json({ 
+                success: true, 
+                message: "You're subscribed! 💖 We'll send your message soon! 💌" 
+            });
+        }
 
     } catch (err) {
-        console.error("❌ Error saving email:", err);
-        return res.status(500).json({ success: false, message: "Oops! Something went wrong. Try again 💌" });
+        console.error("❌ Error in /valentine:", err);
+        return res.status(500).json({ 
+            success: false, 
+            message: "Oops! Something went wrong. Try again 💌"
+        });
     }
 });
-
 
 app.get("/send", async (req, res) => {
     try {
@@ -175,10 +215,12 @@ app.get("/send", async (req, res) => {
 
         res.json({ success: true, message: `Done 💌 Success: ${success}, Failed: ${failed}` });
 
-
     } catch (err) {
-        console.error("❌ Error in /send route:", err);
-        res.status(500).send("Error sending emails 💌");
+        console.error("❌ Error in /send:", err);
+        return res.status(500).json({ 
+            success: false, 
+            message: "Oops! Something went wrong. Try again 💌"
+        });
     }
 });
 
@@ -192,8 +234,3 @@ app.get("/emails", async (req, res) => {
         res.status(500).send("Cannot fetch emails 💌");
     }
 });
-
-// app.listen(port, () => {
-//     console.log(`server is running on ${port}`);
-
-// })
