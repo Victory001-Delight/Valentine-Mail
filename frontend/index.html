@@ -73,13 +73,8 @@
 <body>
 
 <div class="container">
-
     <h1>HeartNest 💌</h1>
-
-    <p>
-        Valentine is not just about romance.<br><br>
-        It's about appreciation, love, and reminding people they matter.
-    </p>
+    <p>Valentine is not just about romance.<br><br>It's about appreciation, love, and reminding people they matter.</p>
 
     <form id="valentineForm">
         <input type="text" name="name" placeholder="Your name (optional)">
@@ -87,11 +82,11 @@
         <button type="submit">Receive Love Message 💌</button>
     </form>
 
-    <div class="footer">
-        Built by Abba's Delight ❤️
-    </div>
-</div>
+    <!-- Message will appear here -->
+    <div id="message" class="message"></div>
 
+    <div class="footer">Built by Abba's Delight ❤️</div>
+</div>
 
 <script>
 const form = document.getElementById("valentineForm");
@@ -99,6 +94,8 @@ const messageDiv = document.getElementById("message");
 
 form.addEventListener("submit", async (e) => {
     e.preventDefault();
+
+    messageDiv.innerHTML = "Sending... 💌"; // show immediate feedback
 
     const formData = {
         name: form.name.value,
@@ -114,7 +111,9 @@ form.addEventListener("submit", async (e) => {
 
         const text = await res.text();
 
-        messageDiv.innerHTML = `<p>${text}</p>`;
+        messageDiv.innerHTML = `<p>${text}</p>`; // show backend response
+
+        if (res.ok) form.reset(); // clear form on success
 
     } catch (err) {
         console.error(err);
@@ -125,3 +124,4 @@ form.addEventListener("submit", async (e) => {
 
 </body>
 </html>
+
