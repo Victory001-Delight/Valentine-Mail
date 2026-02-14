@@ -10,7 +10,7 @@ const Subscriber = require('./models/Subscriber'); // your Mongoose model
 
 
 const app = express();
-const port = process.env.PORT || 3500; 
+const port = process.env.PORT || 3500;
 
 // Middleware
 app.use(cors()); // Only needed if frontend is on a different domain
@@ -105,9 +105,9 @@ app.post("/valentine", async (req, res) => {
 
         // Validate email
         if (!email) {
-            return res.status(400).json({ 
-                success: false, 
-                message: "Email is required! 💌" 
+            return res.status(400).json({
+                success: false,
+                message: "Email is required! 💌"
             });
         }
 
@@ -117,14 +117,14 @@ app.post("/valentine", async (req, res) => {
         if (subscriber) {
             // If already sent, inform them
             if (subscriber.messageSent) {
-                return res.json({ 
-                    success: true, 
-                    message: "You've already received your Valentine message! 💖 Check your inbox! 💌" 
+                return res.json({
+                    success: true,
+                    message: "You've already received your Valentine message! 💖 Check your inbox! 💌"
                 });
             } else {
                 // Subscriber exists but message not sent yet, send now
                 const randomMsg = messages[Math.floor(Math.random() * messages.length)];
-                
+
                 try {
                     await transporter.sendMail({
                         from: `"Abba's Delight 💙" <abbasdelightofficial@gmail.com>`,
@@ -140,16 +140,16 @@ app.post("/valentine", async (req, res) => {
 
                     console.log(`✅ Valentine email sent to existing subscriber ${email}`);
 
-                    return res.json({ 
-                        success: true, 
-                        message: "Success! 💌 Your Valentine message has been sent! Check your inbox! ❤️" 
+                    return res.json({
+                        success: true,
+                        message: "Success! 💌 Your Valentine message has been sent! Check your inbox! ❤️"
                     });
 
                 } catch (emailErr) {
                     console.error(`❌ Failed to send email to ${email}:`, emailErr.message);
-                    return res.json({ 
-                        success: true, 
-                        message: "You're on our list! 💖 We'll send your message soon! 💌" 
+                    return res.json({
+                        success: true,
+                        message: "You're on our list! 💖 We'll send your message soon! 💌"
                     });
                 }
             }
@@ -182,25 +182,25 @@ app.post("/valentine", async (req, res) => {
 
             console.log(`✅ Welcome email sent to ${email}`);
 
-            return res.json({ 
-                success: true, 
-                message: "Success! 💌 Your Valentine message has been sent! Check your inbox! ❤️" 
+            return res.json({
+                success: true,
+                message: "Success! 💌 Your Valentine message has been sent! Check your inbox! ❤️"
             });
 
         } catch (emailErr) {
             console.error(`❌ Failed to send email to ${email}:`, emailErr.message);
-            
+
             // Still return success since subscriber was saved
-            return res.json({ 
-                success: true, 
-                message: "You're subscribed! 💖 We'll send your message soon! 💌" 
+            return res.json({
+                success: true,
+                message: "You're subscribed! 💖 We'll send your message soon! 💌"
             });
         }
 
     } catch (err) {
         console.error("❌ Error in /valentine:", err);
-        return res.status(500).json({ 
-            success: false, 
+        return res.status(500).json({
+            success: false,
             message: "Oops! Something went wrong. Try again 💌"
         });
     }
@@ -212,9 +212,9 @@ app.get("/send", async (req, res) => {
         const unsentSubscribers = await Subscriber.find({ messageSent: false });
 
         if (unsentSubscribers.length === 0) {
-            return res.json({ 
-                success: true, 
-                message: "No new subscribers to send messages to! 💌" 
+            return res.json({
+                success: true,
+                message: "No new subscribers to send messages to! 💌"
             });
         }
 
@@ -228,10 +228,12 @@ app.get("/send", async (req, res) => {
             try {
                 await transporter.sendMail({
                     from: `"Abba's Delight 💙" <abbasdelightofficial@gmail.com>`,
-                    to: subscriber.email,
+                    to: user.email,
+                    replyTo: "abbasdelightofficial@gmail.com",
                     subject: "Your Special Valentine Note 💌",
-                    html: `<h2>Hello ${subscriber.name} 💖</h2><p>${randomMsg}</p>`
+                    html: `<h2>Hello ${user.name || "there"} 💖</h2><p>${randomMsg}</p>`
                 });
+
 
                 // Mark as sent in database
                 subscriber.messageSent = true;
@@ -242,7 +244,7 @@ app.get("/send", async (req, res) => {
                 success++;
 
                 // Optional: tiny delay to avoid Gmail throttling
-                await new Promise(r => setTimeout(r, 1000));
+                await new Promise(resolve => setTimeout(resolve, 5000));
 
             } catch (err) {
                 console.error(`❌ Failed to send to ${subscriber.email}`);
@@ -258,8 +260,8 @@ app.get("/send", async (req, res) => {
 
     } catch (err) {
         console.error("❌ Error in /send:", err);
-        return res.status(500).json({ 
-            success: false, 
+        return res.status(500).json({
+            success: false,
             message: "Oops! Something went wrong. Try again 💌"
         });
     }
